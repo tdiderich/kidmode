@@ -59,19 +59,8 @@ type Shortcut struct {
 	anyModifiers bool
 }
 
+// Keys to block regardless of modifier state (function keys, special keys)
 var shortcutsToBlock = []Shortcut{
-	// Cmd+Space (Spotlight)
-	{49, C.kCGEventFlagMaskCommand, false},
-	// Cmd+Tab (App Switcher)
-	{48, C.kCGEventFlagMaskCommand, false},
-	// Cmd+Q (Quit)
-	{12, C.kCGEventFlagMaskCommand, false},
-	// Cmd+W (Close window)
-	{13, C.kCGEventFlagMaskCommand, false},
-	// Cmd+H (Hide)
-	{4, C.kCGEventFlagMaskCommand, false},
-	// Cmd+M (Minimize)
-	{41, C.kCGEventFlagMaskCommand, false},
 	// F3 / Mission Control
 	{99, 0, true},
 	// F4 / Launchpad
@@ -80,22 +69,8 @@ var shortcutsToBlock = []Shortcut{
 	{160, 0, true},
 	// Launchpad key (newer Apple keyboards)
 	{131, 0, true},
-	// Control+Up (Mission Control)
-	{126, C.kCGEventFlagMaskControl, false},
-	// Control+Down (App Exposé)
-	{125, C.kCGEventFlagMaskControl, false},
-	// Control+Left (Switch Spaces)
-	{123, C.kCGEventFlagMaskControl, false},
-	// Control+Right (Switch Spaces)
-	{124, C.kCGEventFlagMaskControl, false},
 	// Globe/fn key
 	{179, 0, true},
-	// Cmd+Shift+3 (Screenshot full screen)
-	{20, C.kCGEventFlagMaskCommand | 0x00020000, false},
-	// Cmd+Shift+4 (Screenshot selection)
-	{21, C.kCGEventFlagMaskCommand | 0x00020000, false},
-	// Cmd+Shift+5 (Screenshot/recording panel)
-	{23, C.kCGEventFlagMaskCommand | 0x00020000, false},
 }
 
 var eventTapRef C.CFMachPortRef
@@ -104,16 +79,24 @@ func shouldBlockKeyEvent(eventType C.CGEventType, event C.CGEventRef) bool {
 	keyCode := uint16(C.CGEventGetIntegerValueField(event, C.kCGKeyboardEventKeycode))
 	flags := uint64(C.CGEventGetFlags(event))
 
+	// Block ALL Cmd+ key combinations — this catches every terminal's shortcuts
+	// (new window, new tab, preferences, split panes, etc.) without needing a blocklist.
+	if flags&C.kCGEventFlagMaskCommand != 0 {
+		return true
+	}
+
+	// Block ALL Control+ key combinations — catches Ctrl+Tab, Ctrl+arrows, etc.
+	if flags&C.kCGEventFlagMaskControl != 0 {
+		return true
+	}
+
+	// Block specific keys that are problematic regardless of modifiers
 	for _, s := range shortcutsToBlock {
-		if keyCode == s.keyCode {
-			if s.anyModifiers {
-				return true
-			}
-			if flags&s.requiredFlag == s.requiredFlag {
-				return true
-			}
+		if keyCode == s.keyCode && s.anyModifiers {
+			return true
 		}
 	}
+
 	return false
 }
 
